@@ -1,103 +1,166 @@
-import Image from "next/image";
+"use client"; //Tells Next.js that this file runs in the browser so we can use react hooks.
 
-export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
+import { use, useEffect, useState } from "react"; // importing react hooks, useEffect runs code after render, useState stores data that can change
+
+type Match = { //creating a type for Match objects
+  id: string; //unique identifier for the match
+  playedAt: string; //date the match was played
+  opponentName: string; //name of the opponent
+  opponentDUPR: number; //opponent's DUPR rating
+  yourScore?: number; //your score
+  opponentScore?: number; //opponent's score
+  result?: "WIN" | "LOSS"; //result of the match, either "WIN" or "LOSS"
+  notes?: string; //additional notes about the match
+};
+
+export default function Home() { //main component for the home page
+  const [matches, setMatches] = useState<Match[]>([]); //state to store the list of matches, initialized as an empty array
+  const [form, setForm] = useState({ //state to store form data, initialized with empty/default values
+    playedAt: "",
+    opponentName: "",
+    opponentDUPR: "",
+    yourScore: "",
+    opponentScore: "",
+    outcome: "WIN",
+    notes: "",
+  });
+
+useEffect(() => {  //Runs once after first render (empty dependency array)
+  const raw = localStorage.getItem("matches"); //retrieves the "matches" item from local storage
+  if (raw) { //only parse if there is something in local storage
+    try {
+      setMatches(JSON.parse(raw) as Match[]); //parses the JSON string and updates the matches state
+    } catch {
+      localStorage.removeItem("matches"); // if parsing fails, remove the corrupted item from local storage
+    }
+  }
+}, []);
+
+useEffect(() => { //this effect depends on matches.
+  localStorage.setItem("matches", JSON.stringify(matches)); //saves the current matches state to local storage as a JSON string
+}, [matches]);
+
+function deleteMatch(id: string) { //function to delete a match by its ID
+  setMatches(prev => prev.filter(m => m.id !== id)); //updates the matches state by filtering out the match with the specified ID
+}
+
+function addMatch(e: React.FormEvent) { //function to handle form submission for adding a new match
+  e.preventDefault(); //prevents the default form submission behavior
+
+  const opp = form.opponentName.trim(); //trims whitespace from the opponent's name
+  const dupr = parseFloat(form.opponentDUPR); //parses the opponent's DUPR rating as a float
+
+  if (!form.playedAt || !opp || Number.isNaN(dupr)) { //validates required fields
+    alert("please enter date, opponent name, and opponent DUPR");
+    return;
+  }
+
+  const m: Match = {
+    id: crypto.randomUUID(), //generates a unique ID for the match
+    playedAt: form.playedAt, //date the match was played
+    opponentName: opp, //opponent's name
+    opponentDUPR: dupr,  //opponent's DUPR rating
+    yourScore: form.yourScore ? parseInt(form.yourScore) : undefined, //your score, parsed as an integer if provided
+    opponentScore: form.opponentScore ? parseInt(form.opponentScore) : undefined, // opponent's score, parsed as an integer if provided
+    result: form.outcome === "LOSS" ? "LOSS" : "WIN", //result of the match, defaults to "WIN" if not "LOSS"
+    notes: form.notes || undefined, // additional notes, set to undefined if empty
+  };
+
+  setMatches(prev => [m, ...prev]); //updates the matches state with the new match
+
+  setForm({ //resets the form state
+    playedAt: "",
+    opponentName: "",
+    opponentDUPR: "",
+    yourScore: "",
+    opponentScore: "",
+    outcome: "WIN",
+    notes: "",
+  });
+}
+const total = matches.length; //total number of matches played
+const wins = matches.filter(m => m.result === "WIN").length;
+const losses = total - wins; //calculates the number of losses
+return (
+  <main className="max-w-2xl mx-auto p-6">
+    <h1 className="text-2xl font-bold">Pickleball Match Tracker</h1>
+    <p className="text-sm text-gray-600 mt-1">
+      Total: {total} • Wins: {wins} • Losses: {losses}
+    </p>
+
+    {/* FORM */}
+    <form onSubmit={addMatch} className="grid gap-2 mt-4">
+      <input
+        type="date"
+        value={form.playedAt}
+        onChange={(e) => setForm({ ...form, playedAt: e.target.value })}
+        className="border p-2 rounded"
+      />
+      <input
+        placeholder="Opponent name"
+        value={form.opponentName}
+        onChange={(e) => setForm({ ...form, opponentName: e.target.value })}
+        className="border p-2 rounded"
+      />
+      <input
+        placeholder="Opponent DUPR (e.g., 3.75)"
+        value={form.opponentDUPR}
+        onChange={(e) => setForm({ ...form, opponentDUPR: e.target.value })}
+        className="border p-2 rounded"
+      />
+      <div className="grid grid-cols-2 gap-2">
+        <input
+          placeholder="Your score (optional)"
+          value={form.yourScore}
+          onChange={(e) => setForm({ ...form, yourScore: e.target.value })}
+          className="border p-2 rounded"
         />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+        <input
+          placeholder="Their score (optional)"
+          value={form.opponentScore}
+          onChange={(e) => setForm({ ...form, opponentScore: e.target.value })}
+          className="border p-2 rounded"
+        />
+      </div>
+      <select
+        value={form.outcome}
+        onChange={(e) => setForm({ ...form, outcome: e.target.value })}
+        className="border p-2 rounded"
+      >
+        <option>WIN</option>
+        <option>LOSS</option>
+      </select>
+      <textarea
+        placeholder="Notes (optional)"
+        value={form.notes}
+        onChange={(e) => setForm({ ...form, notes: e.target.value })}
+        rows={3}
+        className="border p-2 rounded"
+      />
+      <button className="bg-black text-white rounded p-2 w-fit">Save match</button>
+    </form>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    {/* LIST */}
+    <ul className="mt-6 space-y-2">
+      {matches.map((m) => (
+        <li key={m.id} className="border rounded p-3 bg-white">
+          <div className="font-medium">{m.opponentName} • {m.result}</div>
+          <div className="text-sm text-gray-600">
+            {m.playedAt} • DUPR {m.opponentDUPR.toFixed(2)}
+          </div>
+          {(m.yourScore != null || m.opponentScore != null) && (
+            <div className="text-sm">Score: {m.yourScore ?? "-"}–{m.opponentScore ?? "-"}</div>
+          )}
+          {m.notes && <div className="text-sm italic text-gray-700 mt-1">{m.notes}</div>}
+          <button
+            onClick={() => deleteMatch(m.id)}
+            className="mt-2 border rounded px-3 py-1 text-sm"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+            Delete
+          </button>
+        </li>
+      ))}
+    </ul>
+  </main>
   );
 }
